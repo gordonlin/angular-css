@@ -40,8 +40,9 @@
 
       var $css = {};
 
-      var template = '<link ng-repeat="stylesheet in stylesheets track by $index | orderBy: \'weight\' " rel="{{ stylesheet.rel }}" type="{{ stylesheet.type }}" ng-href="{{ stylesheet.href }}" ng-attr-media="{{ stylesheet.media }}">';
-
+      var template = '<link ng-repeat-start="stylesheet in stylesheets track by $index | orderBy: \'weight\' " ng-if="!stylesheet.preload" rel="{{ stylesheet.rel }}" type="{{ stylesheet.type }}" ng-href="{{ stylesheet.href }}" ng-attr-media="{{ stylesheet.media }}" />' +
+                     '<style ng-repeat-end ng-if="stylesheet.preload" ng-attr-media="{{ stylesheet.media }}">{{stylesheet.content}}</style>';                     
+      
       // Variables - default options that can be overridden from application config
       var mediaQuery = {}, mediaQueryListener = {}, mediaQueriesToIgnore = ['print'], options = angular.extend({}, defaults),
         container = angular.element(document.querySelector ? document.querySelector(options.container) : document.getElementsByTagName(options.container)[0]),
@@ -150,6 +151,9 @@
 
       // Add stylesheets to scope
       $rootScope.stylesheets = [];
+      
+      // add preloaded styles
+      $rootScope.preloadedStyles = {};
 
       // Adds compiled link tags to container element
       container[options.method]($compile(template)($rootScope));
@@ -417,7 +421,9 @@
           stylesheet = stylesheets[key] = parse(stylesheet);
           stylesheetLoadPromises.push(
             // Preload via ajax request
-            $http.get(stylesheet.href).error(function (response) {
+            $http.get(stylesheet.href).success(function(style) {
+              $rootScope.preloadedStyles[stylesheet.href] = style;
+            }).error(function (response) {
               $log.error('AngularCSS: Incorrect path for ' + stylesheet.href);
             })
           );
@@ -477,6 +483,10 @@
               $rootScope.stylesheets.push(stylesheet);
             }
             $log.debug('$css.add(): ' + stylesheet.href);
+          }
+          // add preloaded styles
+          if($rootScope.preloadedStyles[stylesheet.href]) {
+            stylesheet.content = $rootScope.preloadedStyles[stylesheet.href];
           }
         });
         // Broadcasts custom event for css add
